@@ -2,9 +2,13 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.compiler)
+    id("app.cash.sqldelight")
+    id("com.google.devtools.ksp")
+    id("com.google.dagger.hilt.android")
 }
 
 android {
+
     namespace = "com.example.easyeats"
     compileSdk {
         version = release(36)
@@ -30,15 +34,27 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "17"
     }
+    kotlin {
+        jvmToolchain(17)
+    }
+
+
+
 }
 
+
+
 dependencies {
+    // Dagger hilt
+    implementation("com.google.dagger:hilt-android:2.57.1")
+    ksp("com.google.dagger:hilt-android-compiler:2.57.1")
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
@@ -49,17 +65,28 @@ dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.09.02")
     implementation(composeBom)
     androidTestImplementation(composeBom)
-
-
+    implementation("androidx.navigation:navigation-compose:2.8.3")
     implementation("androidx.ui:ui-framework:0.1.0-dev03")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
+    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
+    implementation("androidx.activity:activity-compose:1.9.2")
+    implementation(platform("androidx.compose:compose-bom:2024.09.00"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.material3:material3")
+
+    // SQLDelight
+    implementation("app.cash.sqldelight:android-driver:2.1.0")
+
+
     // Lifecycle
     implementation(libs.androidx.activity.compose.v140)
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.5")
+
 
     // Networking
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
@@ -87,3 +114,4 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.1.5") // Example of a standard test dependency
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1") // Example of a standard test dependency
 }
+
