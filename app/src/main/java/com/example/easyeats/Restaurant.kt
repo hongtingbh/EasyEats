@@ -7,7 +7,6 @@ data class Restaurant(
     val rating: Double?,
     val photoUrl: String?,
     val address: String,
-    val lat: Double,
-    val lng: Double
-    //val distanceFromMe: Double
-) : Serializable
+    val latitude: Double,
+    val longitude: Double
+) : Serializable   // ADD THIS

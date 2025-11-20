@@ -39,7 +39,7 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
         }
 
         val restaurant = intent.getSerializableExtra("restaurant") as? Restaurant ?: return
-        val location = LatLng(restaurant.lat, restaurant.lng)
+        val location = LatLng(restaurant.latitude, restaurant.longitude)
         Log.d(TAG, "8.:, $location");
         map.addMarker(MarkerOptions().position(location).title(restaurant.name))
 
