@@ -13,7 +13,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.EasyEats">
 
-        <activity android:name=".MapActivity" />
+        <activity android:name=".MapActivity"
+            android:parentActivityName=".MainActivity"
+            android:exported="false"
+            />
 
         <activity android:name=".MainActivity"
             android:exported="true"

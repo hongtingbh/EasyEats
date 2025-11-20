@@ -19,11 +19,19 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_map)
+        //Added support bar for a back button
+        getSupportActionBar()?.setDisplayHomeAsUpEnabled(true);
 
         val mapFragment = supportFragmentManager
             .findFragmentById(R.id.map_fragment) as SupportMapFragment
         mapFragment.getMapAsync(this)
     }
+
+    override fun onSupportNavigateUp(): Boolean {
+        onBackPressedDispatcher.onBackPressed() // Handle the Up button click
+        return true
+    }
+
 
     override fun onMapReady(googleMap: GoogleMap) {
         map = googleMap
