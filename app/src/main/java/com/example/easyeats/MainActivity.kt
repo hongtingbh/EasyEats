@@ -1,5 +1,11 @@
 package com.example.easyeats
 
+import android.annotation.SuppressLint
+import android.util.Log
+
+
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -45,9 +51,13 @@ import okhttp3.RequestBody
 import okhttp3.Response
 import java.io.IOException
 
-data class Restaurant(val name: String, val rating: Double?, val photoUrl: String?)
 
 class MainActivity : ComponentActivity() {
+    private val TAG = "MyActivityTag" // Or the name of your class
+    //User location request code
+    private val LOCATION_REQUEST_CODE = 1001
+
+
 
     private val client = OkHttpClient()
     private val apiKey = "AIzaSyB9CsEAyTV9wASEa7BRHV9ODKC80WmucqQ"
@@ -138,56 +148,98 @@ class MainActivity : ComponentActivity() {
                 .padding(vertical = 8.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
-            Row(
-                modifier = Modifier
-                    .padding(8.dp)
-                    .fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Restaurant image
-                Image(
-                    painter = rememberAsyncImagePainter(
-                        model = restaurant.photoUrl ?: R.drawable.ic_launcher_foreground
-                    ),
-                    contentDescription = restaurant.name,
-                    modifier = Modifier
-                        .size(80.dp)
-                        .padding(end = 8.dp),
-                    contentScale = ContentScale.Crop
-                )
+            Column(modifier = Modifier.padding(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Image(
+                        painter = rememberAsyncImagePainter(
+                            model = restaurant.photoUrl ?: R.drawable.ic_launcher_foreground
+                        ),
+                        contentDescription = restaurant.name,
+                        modifier = Modifier
+                            .size(80.dp)
+                            .padding(end = 8.dp),
+                        contentScale = ContentScale.Crop
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = restaurant.name,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = "⭐ ${restaurant.rating ?: "N/A"}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = restaurant.address,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
 
-                // Text content
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = restaurant.name,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        text = "⭐ ${restaurant.rating ?: "N/A"}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Button(onClick = {
+                    val context = this@MainActivity
+                    val intent = Intent(context, MapActivity::class.java)
+                    Log.d(TAG, "7: $restaurant");
+                    intent.putExtra("restaurant", restaurant)
+                    context.startActivity(intent)
+                }) {
+                    Text("View on Map")
                 }
             }
         }
     }
 
 
+//    private fun requestLocationPermission() {
+//        if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
+//            != PackageManager.PERMISSION_GRANTED) {
+//
+//            requestPermissions(
+//                arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION),
+//                LOCATION_REQUEST_CODE
+//            )
+//        } else {
+//            getUserLocation()
+//        }
+//    }
+//    override fun onRequestPermissionsResult(
+//        requestCode: Int,
+//        permissions: Array<out String>,
+//        grantResults: IntArray
+//    ) {
+//        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+//
+//        if (requestCode == LOCATION_REQUEST_CODE &&
+//            grantResults.isNotEmpty() &&
+//            grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+//
+//            getUserLocation()
+//        }
+//    }
+
+
+    @SuppressLint("SuspiciousIndentation")
     private fun searchRestaurants(query: String, onResult: (List<Restaurant>) -> Unit) {
+        Log.d(TAG, "1. Search button registered and searchRestaurants function called.");
         val url = "https://places.googleapis.com/v1/places:searchText"
         val jsonBody = """
-            {
-              "textQuery": "$query restaurant",
-              "maxResultCount": 10
-            }
-        """.trimIndent()
+        {
+          "textQuery": "$query restaurant",
+          "maxResultCount": 10
+        }
+    """.trimIndent()
 
         val request = Request.Builder()
             .url(url)
             .addHeader("Content-Type", "application/json")
             .addHeader("X-Goog-Api-Key", apiKey)
-            .addHeader("X-Goog-FieldMask", "places.displayName,places.rating,places.photos")
+            .addHeader("X-Goog-FieldMask", "places.displayName,places.rating,places.photos,places.formattedAddress,places.location")
+            //.addHeader("X-Goog-FieldMask", "places.displayName,places.rating,places.photos")
             .post(RequestBody.create("application/json".toMediaType(), jsonBody))
             .build()
+            Log.d(TAG, "6.:, $request");
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
@@ -196,10 +248,12 @@ class MainActivity : ComponentActivity() {
             }
 
             override fun onResponse(call: Call, response: Response) {
+                Log.d(TAG, "2. searchRestaurants calls onResponse --> Entered onResponse");
                 val body = response.body?.string() ?: return
                 val json = JsonParser.parseString(body).asJsonObject
                 val places = json.getAsJsonArray("places") ?: return
 
+                Log.d(TAG, "3., $places");
                 val results = places.map { element ->
                     val obj = element.asJsonObject
                     val name = obj["displayName"].asJsonObject["text"].asString
@@ -209,12 +263,18 @@ class MainActivity : ComponentActivity() {
                     val photoUrl = photoRef?.let {
                         "https://places.googleapis.com/v1/$it/media?maxWidthPx=400&key=$apiKey"
                     }
-                    Restaurant(name, rating, photoUrl)
-                }
+                    val address = obj["formattedAddress"]?.asString ?: "Address not available"
+                    val lat = obj["location"]?.asJsonObject?.get("latitude")?.asDouble ?: 43.7
+                    val lng = obj["location"]?.asJsonObject?.get("longitude")?.asDouble ?: -79.4
+                    val distanceFromMe = obj["addressDescriptor"]?.asJsonObject?.get("addressDescriptor")?.asDouble ?: -79.4
+                    Restaurant(name, rating, photoUrl, address, lat, lng)
 
+                }
+                Log.d(TAG, "4");
                 runOnUiThread {
                     onResult(results)
                 }
+                Log.d(TAG, "5");
             }
         })
     }
