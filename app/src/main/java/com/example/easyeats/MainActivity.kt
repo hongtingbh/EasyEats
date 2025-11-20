@@ -32,7 +32,7 @@ class MainActivity : ComponentActivity() {
 
     // Declare ShakeDetector as a nullable member variable
     // It will be initialized when the RestaurantListScreen first composes.
-    private var shakeDetector: ShakeDetector? = null
+    var shakeDetector: ShakeDetector? = null
 
     //For debugging/logging
     private val TAG = "MyActivityTag"
@@ -54,14 +54,18 @@ class MainActivity : ComponentActivity() {
     // Control the sensor using Activity lifecycle
     override fun onResume() {
         super.onResume()
-        // If the detector exists, restart listening when the Activity resumes (e.g., returning from MapActivity)
+
+        // If the detector exists (i.e., the Composable has created it), start listening.
+        // This handles returning from the MapActivity.
         shakeDetector?.startListening()
+        Log.d("Fix", "onResume: Called startListening()")
     }
 
     override fun onPause() {
         super.onPause()
         // Stop listening when the Activity is paused (e.g., MapActivity comes into the foreground)
         shakeDetector?.stopListening()
+        Log.d("Fix", "onPause: Called stopListening()")
     }
 
     @Composable
@@ -113,19 +117,25 @@ class MainActivity : ComponentActivity() {
             query = TextFieldValue("")
             Toast.makeText(context, "Search Cleared!", Toast.LENGTH_SHORT).show()
         }
+
         //INTEGRATE SHAKE DETECTION WITH COMPOSE LIFECYCLE
         // Initialize the ShakeDetector ONCE and assign it to the Activity
         DisposableEffect(Unit) {
-            if (activity.shakeDetector == null) {
-                activity.shakeDetector = ShakeDetector(context, onClearSearch)
-            }
+            // Creation: Create the detector and assign it to the Activity member
+            val detector = ShakeDetector(context, onClearSearch)
+            activity.shakeDetector = detector
+            Log.d("Fix", "Composable: Created and assigned new ShakeDetector.")
 
-            // This startListening call is technically optional here due to onResume(), but keeps it simple
-            activity.shakeDetector?.startListening()
+            // Initial Start: Manually start the sensor on first composition
+            detector.startListening()
 
+            // Cleanup: When this Composable is DESTROYED (which happens if you navigate away from "main" screen),
+            // we clean up resources.
             onDispose {
-                // onPause() in the Activity handles it
-                // when the Activity is hidden by another Activity (like MapActivity).
+                detector.stopListening()
+                detector.release() // Release the SoundPool resources
+                activity.shakeDetector = null // Clear the Activity reference
+                Log.d("Fix", "Composable: Released and unassigned detector.")
             }
         }
 
