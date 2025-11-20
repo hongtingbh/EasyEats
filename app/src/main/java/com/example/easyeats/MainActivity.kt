@@ -1,9 +1,10 @@
 package com.example.easyeats
 
 import android.annotation.SuppressLint
-import android.util.Log
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
@@ -15,10 +16,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
-import com.example.easyeats.data.UserDatabaseHelper   // ✅ ADDED from File B
+import com.example.easyeats.data.UserDatabaseHelper
 import com.example.easyeats.ui.LoginScreen
 import com.example.easyeats.ui.SignUpScreen
 import com.google.gson.JsonParser
@@ -28,6 +30,11 @@ import java.io.IOException
 
 class MainActivity : ComponentActivity() {
 
+    // Declare ShakeDetector as a nullable member variable
+    // It will be initialized when the RestaurantListScreen first composes.
+    private var shakeDetector: ShakeDetector? = null
+
+    //For debugging/logging
     private val TAG = "MyActivityTag"
     private val client = OkHttpClient()
 
@@ -37,13 +44,24 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // ✅ Database init (from File B)
         val dbHelper = UserDatabaseHelper(this)
         dbHelper.writableDatabase   // ensures DB is created
 
         setContent {
             EasyEatsApp()
         }
+    }
+    // Control the sensor using Activity lifecycle
+    override fun onResume() {
+        super.onResume()
+        // If the detector exists, restart listening when the Activity resumes (e.g., returning from MapActivity)
+        shakeDetector?.startListening()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Stop listening when the Activity is paused (e.g., MapActivity comes into the foreground)
+        shakeDetector?.stopListening()
     }
 
     @Composable
@@ -87,10 +105,49 @@ class MainActivity : ComponentActivity() {
         var query by remember { mutableStateOf(TextFieldValue("")) }
         var restaurants by remember { mutableStateOf(listOf<Restaurant>()) }
 
+        // Get the current context
+        val activity = LocalContext.current as MainActivity
+        val context = LocalContext.current
+        // Create the shake detector to clear the search, passing the action to clear the state
+        val onClearSearch: () -> Unit = {
+            query = TextFieldValue("")
+            Toast.makeText(context, "Search Cleared!", Toast.LENGTH_SHORT).show()
+        }
+        //INTEGRATE SHAKE DETECTION WITH COMPOSE LIFECYCLE
+        // Initialize the ShakeDetector ONCE and assign it to the Activity
+        DisposableEffect(Unit) {
+            if (activity.shakeDetector == null) {
+                activity.shakeDetector = ShakeDetector(context, onClearSearch)
+            }
+
+            // This startListening call is technically optional here due to onResume(), but keeps it simple
+            activity.shakeDetector?.startListening()
+
+            onDispose {
+                // onPause() in the Activity handles it
+                // when the Activity is hidden by another Activity (like MapActivity).
+            }
+        }
+
+        // 3. Define the action function to launch the map activity (This replaces your existing Card logic)
+        val onLaunchMap: (Restaurant) -> Unit = { restaurant ->
+            // When this function runs:
+            // A. The Activity's onPause() will soon be called, stopping the sensor.
+            // B. We manually execute the original Activity launch logic here.
+            val intent = Intent(context, MapActivity::class.java)
+            Log.d(TAG, "Launching Map for: $restaurant")
+            intent.putExtra("restaurant", restaurant)
+            context.startActivity(intent)
+            // Sensor is stopped by the onPause override in MainActivity (See Step 2)
+        }
+
+
         Scaffold(
             topBar = { SimpleTopBar("EasyEats") }
         ) { padding ->
-            Column(modifier = Modifier.padding(padding).padding(16.dp)) {
+            Column(modifier = Modifier
+                .padding(padding)
+                .padding(16.dp)) {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
@@ -108,7 +165,7 @@ class MainActivity : ComponentActivity() {
 
                 LazyColumn {
                     items(restaurants) { restaurant ->
-                        RestaurantCard(restaurant)
+                        RestaurantCard(restaurant, onLaunchMap)
                     }
                 }
             }
@@ -116,7 +173,7 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun RestaurantCard(restaurant: Restaurant) {
+    fun RestaurantCard(restaurant: Restaurant, onLaunchMap: (Restaurant) -> Unit) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -145,11 +202,8 @@ class MainActivity : ComponentActivity() {
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Button(onClick = {
-                    val context = this@MainActivity
-                    val intent = Intent(context, MapActivity::class.java)
-                    Log.d(TAG, "7: $restaurant")
-                    intent.putExtra("restaurant", restaurant)
-                    context.startActivity(intent)
+                    // Call the function passed from the parent Composable
+                    onLaunchMap(restaurant)
                 }) {
                     Text("View on Map")
                 }
@@ -158,7 +212,7 @@ class MainActivity : ComponentActivity() {
     }
 
     // ----------------------------
-    // GOOGLE PLACES SEARCH (same as File A)
+    // GOOGLE PLACES SEARCH
     // ----------------------------
     @SuppressLint("SuspiciousIndentation")
     private fun searchRestaurants(query: String, onResult: (List<Restaurant>) -> Unit) {
